@@ -1,15 +1,28 @@
+"""mare_valvomo_rfid.py
+==================================================
+
+Täydellinen versio, jossa on
+• koko näytön tila,
+• värikoodaus (punainen = täynnä, vihreä = vapaa),
+• RFID‑tuki RC522:lle,
+• *skannaa ensin* → *valitse rasti* ‑tyyli,
+• toistoskannauksen jälkeen kysymys: "valitaanko uusi rasti vai jatketaanko?".
+"""
+
 import tkinter as tk
 from tkinter import simpledialog, messagebox
 import csv
 import time
 import os
 
+# ================================================== RFID‑lukija (Pi) =========
 try:
     from mfrc522 import SimpleMFRC522
     reader = SimpleMFRC522()
 except ImportError:
-    reader = None  # PC-kehitysympäristö
+    reader = None  # PC‑kehitysympäristö
 
+# ================================================== Perusdata ================
 ADMIN_PASSWORD = "1234"
 
 room_names = [
@@ -23,46 +36,55 @@ occupied_slots = [3,  5,  4,  1, 10,  3,  2,  5,  9]
 
 log_file = "leimaukset.csv"
 
-active_tags = {}
+# Aktiiviset tagit: UID -> rasti‑indeksi
+active_tags: dict[int, int] = {}
 
+# ================================================== Tk‑pääikkuna =============
 root = tk.Tk()
 root.title("Mare valvomo 3000")
-root.state("zoomed")
+root.state("zoomed")  # Kokonäyttö
 
 frame = tk.Frame(root)
 frame.pack(pady=20)
 
-slot_labels = []
-title_labels = []
+slot_labels: list[tk.Label] = []
+title_labels: list[tk.Label] = []
 
-def get_bg_color(idx):
+# ---------- Apufunktiot UI‑päivitykseen --------------------------------------
+
+def get_bg_color(idx: int) -> str:
     if occupied_slots[idx] >= TOTAL_SLOTS[idx]:
         return "#FF6347"  # punainen täynnä
     else:
         return "#90EE90"  # vihreä vapaa
 
-def update_slot(idx, new_occupied=None):
+def update_slot(idx: int, new_occupied: int | None = None):
     if new_occupied is not None:
         occupied_slots[idx] = max(0, new_occupied)
     free = TOTAL_SLOTS[idx] - occupied_slots[idx]
     slot_labels[idx].config(text=f"Vapaita: {free}", bg=get_bg_color(idx))
 
-def update_name(idx, new_name):
+def update_name(idx: int, new_name: str):
     room_names[idx] = new_name
     title_labels[idx].config(text=new_name)
 
+# ---------- 3×3 ruudukko ------------------------------------------------------
 for i in range(9):
     r, c = divmod(i, 3)
+
     title = tk.Label(frame, text=room_names[i], font=("Helvetica", 14, "bold"))
     title.grid(row=r*2, column=c, padx=20, pady=5)
     title_labels.append(title)
+
     free = TOTAL_SLOTS[i] - occupied_slots[i]
     slot = tk.Label(frame, text=f"Vapaita: {free}", font=("Helvetica", 13),
                     bg=get_bg_color(i), width=15, height=2, relief="ridge")
     slot.grid(row=r*2+1, column=c, padx=20, pady=5)
     slot_labels.append(slot)
 
-def log_event(tag_uid, rasti_idx, action):
+# ================================================== CSV kirjaus --------------
+
+def log_event(tag_uid: int, rasti_idx: int, action: str):
     first = not os.path.exists(log_file)
     with open(log_file, "a", newline="") as f:
         w = csv.writer(f, delimiter=";")
@@ -70,7 +92,10 @@ def log_event(tag_uid, rasti_idx, action):
             w.writerow(["timestamp", "rasti", "tag_uid", "action"])
         w.writerow([time.strftime("%Y-%m-%d %H:%M:%S"), room_names[rasti_idx], tag_uid, action])
 
-def choose_rasti_window(tag_uid, current_idx):
+# ================================================== Rastin valinta ikkuna ----
+
+def choose_rasti_window(tag_uid: int, current_idx: int | None):
+    """Avaa ikkunan, josta käyttäjä valitsee rastin."""
     win = tk.Toplevel(root)
     win.title("Valitse rasti")
 
@@ -84,14 +109,17 @@ def choose_rasti_window(tag_uid, current_idx):
     grid = tk.Frame(win)
     grid.pack(pady=5)
 
-    def assign(idx):
+    def assign(idx: int):
         nonlocal win
+        # Vapauta vanha rasti, jos oli
         if current_idx is not None and idx != current_idx:
             if occupied_slots[current_idx] > 0:
                 occupied_slots[current_idx] -= 1
             update_slot(current_idx)
             log_event(tag_uid, current_idx, "EXIT")
             active_tags.pop(tag_uid, None)
+
+        # Sisäänkirjaus uuteen, jos tilaa
         if occupied_slots[idx] < TOTAL_SLOTS[idx]:
             occupied_slots[idx] += 1
             active_tags[tag_uid] = idx
@@ -101,35 +129,14 @@ def choose_rasti_window(tag_uid, current_idx):
         else:
             messagebox.showwarning("Täynnä", f"{room_names[idx]} on täynnä!")
 
+    # Luo 3×3 ‑painike ruudukko
     for i, name in enumerate(room_names):
         r, c = divmod(i, 3)
         b = tk.Button(grid, text=name, width=15, height=2,
-                      command=lambda i=i: assign(i))
+                       command=lambda i=i: assign(i))
         b.grid(row=r, column=c, padx=5, pady=5)
 
-# --- Näytön sammutus/herätys logiikka
-
-SCREEN_TIMEOUT_MS = 30_000  # 30 sekuntia
-screen_off_job = None
-
-def screen_off():
-    # Piilottaa ikkunan (näyttö voi sammua tai olla musta)
-    root.withdraw()
-    # Jos haluat oikeasti sammuttaa fyysisen näytön, voit käyttää komentoa:
-    # os.system("vcgencmd display_power 0")
-    print("Näyttö sammutettu")
-
-def screen_on():
-    root.deiconify()
-    # os.system("vcgencmd display_power 1")
-    print("Näyttö herätetty")
-
-def reset_screen_timer():
-    global screen_off_job
-    if screen_off_job is not None:
-        root.after_cancel(screen_off_job)
-    screen_on()
-    screen_off_job = root.after(SCREEN_TIMEOUT_MS, screen_off)
+# ================================================== Tagin skannaus -----------
 
 def scan_tag():
     if reader is None:
@@ -143,8 +150,6 @@ def scan_tag():
         messagebox.showerror("Lukuvirhe", str(err))
         return
 
-    reset_screen_timer()  # Herätetään näyttö ja käynnistetään 30s laskuri
-
     if tag_uid in active_tags:
         idx = active_tags[tag_uid]
         resposta = messagebox.askyesno(
@@ -155,9 +160,12 @@ def scan_tag():
             choose_rasti_window(tag_uid, idx)
         else:
             messagebox.showinfo("Jatketaan", f"Tagi jatkaa rastilla {room_names[idx]}")
+            # Ei muutoksia occupancyyn – kirjataan halutessa LOG CONTINUE
             log_event(tag_uid, idx, "CONTINUE")
     else:
         choose_rasti_window(tag_uid, None)
+
+# ================================================== Admin paneeli ------------
 
 def open_admin_with_password():
     pw = simpledialog.askstring("Admin salasana", "Syötä salasana:", show="*")
@@ -165,6 +173,7 @@ def open_admin_with_password():
         open_admin_window()
     else:
         messagebox.showerror("Virheellinen salasana", "Pääsy evätty.")
+
 
 def open_admin_window():
     adm = tk.Toplevel(root)
@@ -176,7 +185,7 @@ def open_admin_window():
     frm = tk.Frame(adm)
     frm.pack()
 
-    vars_ = []
+    vars_ = []  # (name, total, occupied)
     for i in range(9):
         tk.Label(frm, text=f"Tila {i+1}").grid(row=i, column=0, sticky="e", padx=5, pady=5)
         nv = tk.StringVar(value=room_names[i])
@@ -198,6 +207,7 @@ def open_admin_window():
     tk.Button(adm, text="Tallenna", command=save, font=("Helvetica", 12),
               bg="#4CAF50", fg="white").pack(pady=20)
 
+# ================================================== Kontrollipainikkeet ------
 btn_frame = tk.Frame(root)
 btn_frame.pack(pady=15)
 
@@ -209,6 +219,6 @@ admin_btn = tk.Button(btn_frame, text="Admin asetukset", font=("Helvetica", 12
                       bg="#2196F3", fg="white", command=open_admin_with_password)
 admin_btn.pack(side="left", padx=15)
 
-reset_screen_timer()  # Käynnistä näytön aikakatkaisu heti
-
-root.mainloop()
+# ================================================== Käynnistä ----------------
+if __name__ == "__main__":
+    root.mainloop()
