@@ -268,11 +268,27 @@ def show_active_tags():
         rasti = get_room_name(idx)
         tk.Label(win, text=f"Tag {uid} - Rasti: {rasti} - Aika: {aika}").pack(anchor="w", padx=10)
 
-# ======================= Rastin valinta ==============================
+def center_window(win, width=300, height=200):
+    # Hakee pääikkunan sijainnin ja koon
+    root_x = root.winfo_x()
+    root_y = root.winfo_y()
+    root_width = root.winfo_width()
+    root_height = root.winfo_height()
 
+    # Lasketaan keskikohta pääikkunassa
+    x = root_x + (root_width // 2) - (width // 2)
+    y = root_y + (root_height // 2) - (height // 2)
+
+    win.geometry(f"{width}x{height}+{x}+{y}")
+
+# Käyttö esimerkissämme (esim. choose_rasti_window-funktiossa):
 def choose_rasti_window(tag_uid: int, current_idx: Optional[int]):
     win = tk.Toplevel(root)
     win.title("Valitse rasti")
+
+    # Aseta ikkuna keskelle, esim leveys 400, korkeus 300
+    center_window(win, 400, 300)
+
 
     tag_str = f"Tagi {tag_uid}" if kieli == "FI" else f"Tag {tag_uid}"
     msg = (f"{tag_str} on nyt rastilla {get_room_name(current_idx)}\nValitse uusi rasti, jatka samalla rastilla tai poistu rastilta:") if current_idx is not None else f"{tag_str} luettu. Valitse rasti:"
