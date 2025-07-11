@@ -393,12 +393,16 @@ def process_tag(tag_uid: int):
     choose_rasti_window(tag_uid, current_idx)
 
 
-# ======================= Muisti viimeiselle tagilla ===================
+# ======================= Muisti viimeiselle tagille ==============================
 
+last_read_uid = None
+last_read_time = 0
+READ_COOLDOWN = 3  # sekuntia ennen kuin sama tagi voidaan käsitellä uudestaan
 
 # ======================= Pääohjelman ajo ==============================
 
 def main_loop():
+    global last_read_uid, last_read_time
 
     # Tarkistetaan vanhentuneet tagit säännöllisesti
     tarkista_vanhentuneet_tagit()
@@ -406,17 +410,25 @@ def main_loop():
     # Jos NFC-lukija löytyy, luetaan tagi
     if reader:
         try:
-            id, _ = reader.read_no_block()
-            if id:
-                process_tag(id)
-                # Odotetaan ettei lueta heti uudestaan samaa tagia
-                time.sleep(1)
+            result = reader.read_no_block()
+            if result:
+                id, _ = result
+                if id is not None:
+                    now = time.time()
+                    if id != last_read_uid or (now - last_read_time > READ_COOLDOWN):
+                        last_read_uid = id
+                        last_read_time = now
+                        process_tag(id)
+                        time.sleep(1)  # estää tuplalukemista
         except Exception as e:
             print("Lukija virhe:", e)
 
-    root.after(1000, main_loop)  # kutsutaan uudestaan 1 sekunnin kuluttua
+    root.after(1000, main_loop)
+
+
+
+
 
 päivitä_kieli()
 main_loop()
 root.mainloop()
-
