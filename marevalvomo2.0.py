@@ -1,5 +1,5 @@
 ####RIVI293 poista risuaita
-
+#ei multi ikkunointia samalle tag idlle
 
 
 
@@ -22,15 +22,15 @@ from typing import Optional
 ADMIN_PASSWORD = "1234"
 
 room_names = [
-    "Rasti1", "Rasti2", "Rasti3",
-    "Rasti4", "Rasti5", "Rasti6",
-    "Rasti7", "Rasti8",
+    "1 PYSY PINNALLA", "2 ÄLÄ ANNA PALAA", "3 LIIKETTÄ PALLOON",
+    "4 RISUARNOLDS", "5 Kuumat paikat", "6 Santa odysseia",
+    "7 Sokkona vesillä", "8 Lauta ralli",
 ]
 
 room_names_en = [
-    "Checkpoint1", "Checkpoint2", "Checkpoint3",
-    "Checkpoint4", "Checkpoint5", "Checkpoint6",
-    "Checkpoint7", "Checkpoint8",
+    "1 Stay afloat", "2 Don't let it burn", "3 Keep the ball moving",
+    "4 Dunkin sticks", "5 Hot Spots", "6 Sand odyssei",
+    "7 Lost at sea", "8 Plank ralley",
 ]
 
 texts_fi = {
@@ -61,11 +61,11 @@ texts_en = {
 
 kieli = "FI"
 
-TOTAL_SLOTS =   [10, 8, 12, 9, 15, 6, 7, 5]
-occupied_slots = [3, 5,  4, 1, 10, 3, 2, 5]
+TOTAL_SLOTS =   [8, 5, 5, 10, 6, 6, 5, 6]
+occupied_slots = [0, 0,  0, 0, 0, 0, 0, 0]
 
 log_file = "leimaukset.csv"
-timeout_seconds = 3600
+timeout_seconds = 7200
 
 active_tags: dict[int, tuple[int, float]] = {}
 
@@ -89,18 +89,34 @@ left_frame.grid(row=0, column=0, sticky="nsw", padx=10, pady=10)
 ohje_label = tk.Label(left_frame, text=texts_fi["instructions"], font=("Helvetica", 12, "bold"))
 ohje_label.pack(pady=(0,10))
 
-ohje_text = tk.Text(left_frame, height=20, width=35,font=("Helvetica", 14), wrap="word")
+ohje_text = tk.Text(left_frame, height=20, width=35,font=("Helvetica", 16), wrap="word")
 ohje_text.pack()
 
 suomi_ohje = """\
-1. Ohjaa kursoria liikuttamalla sormea kosketusnäytöllä.
-3. Vie NFC-tagi lähelle lukijaa.
-4. Valitse haluamasi rasti painamalla.
-5. Jos tagi on jo rastilla, voit valita uuden, jatkaa samalla tai poistua rastilta.
+
+
+
+
+!!! OHJAA KURSORIA LIIKUTTAMALLA SORMEA NÄYTÖLLÄ JA VALITSE NAPAUTTAMALLA NÄYTTÖÄ !!!
+
+1. Vie NFC-tagi lähelle lukijaa.
+2. Valitse haluamasi rasti painamalla.
+3. Jos tagi on jo rastilla, voit valita uuden, jatkaa samalla tai poistua rastilta.
+
+CHANGE LANGUAGE BY DRAGGING YOUR FINGER ON SCREEN AND TAP WHEN CURSOR IS OVER ENGLISH
 """
 
 englanti_ohje = """\
-Same in english
+
+
+
+!!! MOVE CURSOR BY DRAGGING YOUR FINGER ON SCREEN AND TAP TO SELECT !!!
+
+1. Move your playingcard near the reader.
+2. Choose your checkpoint by placing cursor on wanted checkpoint.
+3. If tag is already in checkpoint, you can choose new, continue or exit checkpoint.
+
+VAIHDA KIELTÄ OHJAAMALLA KURSORI SUOMEKSI PAINIKKEEN PÄÄLLE JA NAPAUTA NÄYTTÖÄ
 """
 
 ohje_text.insert("1.0", suomi_ohje)
@@ -132,19 +148,20 @@ def get_bg_color(idx: int) -> str:
 
 ROWS = 3
 COLUMNS = 3
-BOX_WIDTH = 15
-BOX_HEIGHT = 5
+BOX_WIDTH = 17
+BOX_HEIGHT = 7
 
 for i in range(len(room_names)):
     r, c = divmod(i, 3)
+    r1 = r + 1
 
-    title = tk.Label(grid_frame, text=room_names[i], font=("Helvetica", 10, "bold"))
-    title.grid(row=r*2, column=c, padx=50, pady=(0,20))
+    title = tk.Label(grid_frame, text=room_names[i], font=("Helvetica", 11, "bold"))
+    title.grid(row=r1*2, column=c, padx=10, pady=(0,20))
     title_labels.append(title)
 
     slot_label = tk.Label(grid_frame, text=f"Vapaita: {TOTAL_SLOTS[i] - occupied_slots[i]}",
-                          bg=get_bg_color(i), font=("Helvetica", 15), width=BOX_WIDTH, height=BOX_HEIGHT)
-    slot_label.grid(row=r*2+1, column=c, padx=10, pady=(0,30))
+                          bg=get_bg_color(i), font=("Helvetica", 12), width=BOX_WIDTH, height=BOX_HEIGHT)
+    slot_label.grid(row=r1*2+1, column=c, padx=8, pady=(0,24))
     slot_labels.append(slot_label)
 
 def päivitä_kieli():
@@ -375,9 +392,14 @@ def process_tag(tag_uid: int):
     current_idx = idx_tuple[0] if idx_tuple else None
     choose_rasti_window(tag_uid, current_idx)
 
+
+# ======================= Muisti viimeiselle tagilla ===================
+
+
 # ======================= Pääohjelman ajo ==============================
 
 def main_loop():
+
     # Tarkistetaan vanhentuneet tagit säännöllisesti
     tarkista_vanhentuneet_tagit()
 
@@ -397,3 +419,4 @@ def main_loop():
 päivitä_kieli()
 main_loop()
 root.mainloop()
+
